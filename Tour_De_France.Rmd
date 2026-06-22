@@ -1,0 +1,265 @@
+---
+title: "Tour De France"
+output: html_document
+date: "2026-06-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r,warning="False",="False"}
+install.packages("tidytuesdayR")
+library(tidytuesdayR)
+install.packages("tidyverse")
+library(tidyverse)
+```
+
+```{r}
+
+winners_tdf <- read.csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-04-07/tdf_winners.csv')
+str(winners_tdf)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+winners_tdf%>%
+  count(birth_country,sort=TRUE)%>%
+  mutate(birth_country=fct_reorder(birth_country,n))%>%
+  ggplot(aes(n,birth_country))+
+  geom_col()+
+  labs(y="",
+    title="Which countries were the winners from ?")
+
+```
+```{r}
+winners_tdf%>%
+  count(winner_name,birth_country,sort=TRUE)
+```
+```{r}
+library(lubridate)
+winners_tdf<-winners_tdf%>%
+  mutate(year=year(start_date),speed= distance/time_overall)
+
+
+  winners_tdf%>%
+  group_by(decade= 10*(year %/% 10))%>%
+  summarize(winner_age=mean(age),
+            winner_height=mean(height,na.rm=TRUE),
+            winner_weight=mean(weight,na.rm=TRUE),
+            time_margin=mean(time_margin,na.rm=TRUE),
+            winner_speed=mean(speed,na.rm=TRUE))%>% ggplot(aes(decade,winner_speed))+
+  geom_line()+
+  expand_limits(y=0)+
+  labs(x="Decade",y="Average time margin by which the winner won")
+  
+```
+```{r}
+library(lubridate)
+winners_tdf<-winners_tdf%>%
+  mutate(year=year(start_date),speed= distance/time_overall)
+
+
+  winners_tdf%>%
+  group_by(decade= 10*(year %/% 10))%>%
+  summarize(winner_age=mean(age),
+            winner_height=mean(height,na.rm=TRUE),
+            winner_weight=mean(weight,na.rm=TRUE),
+            time_margin=mean(time_margin,na.rm=TRUE),
+            winner_speed=mean(speed,na.rm=TRUE))%>% ggplot(aes(decade,winner_speed))+
+  geom_line()+
+  expand_limits(y=0)+
+  labs(x="Decade",y="Average Speed of Winners")
+  
+```
+  Probably better bikes
+  Note:Steroid era was in 70s doesnt seem to have affceted speeds
+```{r}
+library(lubridate)
+winners_tdf<-winners_tdf%>%
+  mutate(year=year(start_date),speed= distance/time_overall)
+
+
+  winners_tdf%>%
+  group_by(decade= 10*(year %/% 10))%>%
+  summarize(winner_age=mean(age),
+            winner_height=mean(height,na.rm=TRUE),
+            winner_weight=mean(weight,na.rm=TRUE),
+            time_margin=mean(time_margin,na.rm=TRUE),
+            winner_speed=mean(speed,na.rm=TRUE))%>% ggplot(aes(decade,time_margin))+
+  geom_line()+
+  expand_limits(y=0)+
+  labs(x="Decade",y="Average time margin by which the winner won")
+  
+```
+If we want to check life expectancy of the winners a problem arises,not all the winners are dead yet and we choose the deceased sample they may differ from the still alive (maybe they were less healthy etc).How big would be this truncated sample?
+
+```{r}
+library(dplyr)
+library(survival)
+winners_tdf %>%
+  distinct(winner_name,.keep_all=TRUE)%>%
+  filter(!is.na(died))
+
+ 
+```
+```{r}
+library(dplyr)
+library(survival)
+library(broom)
+
+surv_model<- winners_tdf %>%
+  distinct(winner_name,.keep_all=TRUE)%>%
+  transmute(winner_name,born=year(born),
+         died=year(died),
+          dead = as.integer(!is.na(died)))%>%
+  mutate(age_at_death=coalesce(died,2020)-born)%>%
+  survfit(Surv(age_at_death,dead)~1,data=.)
+
+glance(surv_model)
+
+  
+```
+Median life expectancy if Tour De France Winners is 77.
+```{r}
+
+stage_data<- read.csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-04-07/stage_data.csv')
+tdf_stages<-read.csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-04-07/tdf_stages.csv')
+library(janitor)
+clean_names(tdf_stages)
+
+```
+
+```{r}
+x<- c(1,2,c,4,5)
+y<- c(1,2,3,4,5)
+inner_join(x,y)
+```
+
+```{r}
+tdf_stages<-tdf_stages%>%
+  mutate(year=year(Date))
+```
+
+```{r,warning=FALSE}
+stages_joined<- stage_data %>%
+  extract(stage_results_id,"Stage","stage-(.*)")%>%
+  inner_join(tdf_stages,by=c("year","Stage"))%>%
+  mutate(rank=as.integer(rank))
+
+ stages_joined %>%
+   group_by(year,rider,Stage)%>%
+   summarize(stages=n_distinct(Stage),
+             median_percentile=median(percentile,na.rm=TRUE))%>%
+   arrange(desc(stages))
+
+ 
+
+
+ 
+  
+```
+  ```
+Does winner of the first stage predict final points ranking ?
+```{r}
+stages_joined<- stage_data %>%
+  extract(stage_results_id,"Stage","stage-(.*)")%>%
+  inner_join(tdf_stages,by=c("year","Stage"))%>%
+  mutate(rank=as.integer(rank))%>%
+  group_by(year,Stage)%>%
+  mutate(finishers=sum(!is.na(rank)))%>%
+  ungroup%>%
+  mutate(percentile=1-rank/finishers)
+  
+  total_points<-stages_joined%>%
+  group_by(year,rider)%>%
+  summarize(total_points = sum(points,na.rm=TRUE))%>%
+  mutate(final_rank=percent_rank(total_points))%>%
+  ungroup()
+```
+
+
+```{r}
+
+bar_joined<-stages_joined%>%
+filter(Stage == "1" )%>%
+inner_join(total_points,by=c("year","rider"))%>%
+select(year,rider,first_stage_percentile=percentile,points_first_stage=points,
+final_rank)%>%
+mutate(first_stage_bin=cut(first_stage_percentile,seq(0,1,.1)))
+
+
+```
+We get a surprising relation ! Good first stage performance is related with poor overall performance.Most likley ,the confounder here is the type of Stage.Stage 1 , being a tiem trial , the kind of riders who will perform good here are not enduranec riders.
+
+```{r}
+stages_joined %>%
+filter(Stage == "1" ) %>%
+inner_join(total_points,by=c("year","rider"))%>%
+select(year,rider,first_stage_percentile=percentile,points_first_stage=points,
+final_rank)%>%
+mutate(first_stage_bin=cut(first_stage_percentile,seq(0,1,.1)))%>%
+filter(!is.na(first_stage_bin))%>%
+ggplot(aes(first_stage_bin,final_rank))+
+geom_boxplot()+
+theme(axis.text.x=element_text(angle=90))+
+labs(x="Decile performance in the first stage",
+ y="Overall points pecentile")
+ 
+
+```
+You need to be in the top half in  the first stage to end up with an OKAyish performance
+overall
+```{r}
+install.packages("gganimate")
+library(gganimate)
+
+top_10_2017<-total_points%>%
+filter(year == max(year))%>%
+top_n(10,total_points)
+
+
+p<-stages_joined%>%
+filter(year == max(year))%>%
+semi_join(top_10_2017, by= "rider")%>%
+mutate(Stage=as.integer(Stage), points=coalesce(points,0))%>%
+arrange(Stage)%>%
+group_by(rider)%>%
+mutate(cumulative_points=cumsum(points))%>%
+ungroup%>%
+ggplot(aes(cumulative_points,rider))+
+geom_col()+
+transition_time(Stage)+
+labs(x="cumulative points" , title="The 2017 Tour De France:{frame_time }")
+
+
+
+
+
+
+```
+
+
+
+
+ 
+
+  
+
+  
+
+
+  
+  
+
+
+
